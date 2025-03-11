@@ -1,0 +1,59 @@
+apiVersion: source.toolkit.fluxcd.io/v1beta2
+kind: HelmRepository
+metadata:
+  name: influxdb-mqtt-homeassistant-repo
+  namespace: flux-system
+spec:
+  interval: 10m
+  url: ghcr.io/mwinters/influx-mqtt-homeassistant  # Change to your Helm repo
+
+---
+
+apiVersion: helm.toolkit.fluxcd.io/v2beta1
+kind: HelmRelease
+metadata:
+  name: influxdb-mqtt-homeassistant
+  namespace: apps  # Change if needed
+spec:
+  releaseName: influxdb-mqtt-homeassistant
+  interval: 5m  # Sync every 5 minutes
+  chart:
+    spec:
+      chart: influxdb-mqtt-homeassistant
+      sourceRef:
+        kind: HelmRepository
+        name: influxdb-mqtt-homeassistant-repo  # Change to your repo name
+        namespace: flux-system
+      version: ">=1.0.0"  # Auto-updates minor versions
+  values:
+    image:
+      repository: ghcr.io/your-username/influxdb-mqtt-homeassistant  # Change to your image
+      tag: latest
+    env:
+      INFLUX_URL: "http://influxdb.home-assistant.svc:8086"
+      INFLUX_BUCKET: "your-bucket"
+      INFLUX_ORG: "your-org"
+      MQTT_BROKER: "tcp://homeassistant.local:1883"
+      MQTT_SENSOR: "influxdb-sensor"
+    secretRef:
+      name: influxdb-mqtt-homeassistant-secrets  # References a Kubernetes Secret for sensitive values
+    resources:
+      limits:
+        memory: "128Mi"
+        cpu: "100m"
+      requests:
+        memory: "64Mi"
+        cpu: "50m"
+
+---
+
+apiVersion: v1
+kind: Secret
+metadata:
+  name: influxdb-mqtt-homeassistant-secrets
+  namespace: apps
+type: Opaque
+stringData:
+  INFLUX_TOKEN: "your-influxdb-token"
+  MQTT_USERNAME: "your-mqtt-user"
+  MQTT_PASSWORD: "your-mqtt-password"

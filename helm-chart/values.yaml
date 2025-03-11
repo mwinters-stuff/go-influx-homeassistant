@@ -1,0 +1,19 @@
+image:
+  repository: ghcr.io/mwinters/influx-mqtt-homeassistant
+  tag: latest
+
+env:
+  INFLUX_URL: "http://influxdb.home-assistant.svc:8086"
+  INFLUX_BUCKET: "your-bucket"
+  MQTT_BROKER: "tcp://homeassistant.local:1883"
+
+secretRef:
+  name: mqtt-sensor-secrets
+
+resources:
+  limits:
+    memory: "128Mi"
+    cpu: "100m"
+  requests:
+    memory: "64Mi"
+    cpu: "50m"

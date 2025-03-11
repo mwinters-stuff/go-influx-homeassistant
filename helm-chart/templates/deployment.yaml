@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Release.Name }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: mqtt-sensor
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: Always
+          env:
+            - name: INFLUX_URL
+              value: "{{ .Values.env.INFLUX_URL }}"
+            - name: INFLUX_BUCKET
+              value: "{{ .Values.env.INFLUX_BUCKET }}"
+            - name: MQTT_BROKER
+              value: "{{ .Values.env.MQTT_BROKER }}"
+          envFrom:
+            - secretRef:
+                name: {{ .Values.secretRef.name }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

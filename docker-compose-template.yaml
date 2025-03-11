@@ -1,0 +1,13 @@
+services:
+  influx-mqtt-homeassistant:
+    build: .
+    container_name: influx-mqtt-homeassistant
+    restart: unless-stopped
+    environment:
+      - INFLUX_URL=http://influxurl:8083
+      - INFLUX_TOKEN=yourtoken
+      - INFLUX_ORG=yopurorg
+      - INFLUX_BUCKET=yourbucket
+      - MQTT_BROKER=tcp://mqttbroker:1883
+      - MQTT_USERNAME=yourusername
+      - MQTT_PASSWORD=yourpassword

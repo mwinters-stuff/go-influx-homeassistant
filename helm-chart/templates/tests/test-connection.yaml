@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: "{{ include "influx-mqtt-homeassistant.fullname" . }}-test-connection"
+  labels:
+    {{- include "influx-mqtt-homeassistant.labels" . | nindent 4 }}
+  annotations:
+    "helm.sh/hook": test
+spec:
+  containers:
+    - name: wget
+      image: busybox
+      command: ['wget']
+      args: ['{{ include "influx-mqtt-homeassistant.fullname" . }}:{{ .Values.service.port }}']
+  restartPolicy: Never

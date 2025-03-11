@@ -1,0 +1,16 @@
+2025/03/10 19:36:24 main.go:218: Starting Weather Sensor MQTT Publisher...
+2025/03/10 19:36:24 main.go:221: Connecting to InfluxDB at: http://localhost:8086 (Org: your-org, Bucket: your-bucket)
+2025/03/10 19:36:24 main.go:222: Connecting to MQTT Broker: tcp://homeassistant.local:1883
+2025/03/10 19:36:24 main.go:208: Failed to connect to MQTT (attempt 1/5): network Error : dial tcp 192.168.1.9:1883: connect: connection refused
+2025/03/10 19:36:29 main.go:208: Failed to connect to MQTT (attempt 2/5): network Error : dial tcp 192.168.1.239:1883: connect: connection refused
+2025/03/10 19:40:07 main.go:218: Starting Weather Sensor MQTT Publisher...
+2025/03/10 19:40:07 main.go:221: Connecting to InfluxDB at: http://localhost:8086 (Org: your-org, Bucket: your-bucket)
+2025/03/10 19:40:07 main.go:222: Connecting to MQTT Broker: tcp://homeassistant.local:1883
+2025/03/10 19:40:08 main.go:208: Failed to connect to MQTT (attempt 1/5): network Error : dial tcp 192.168.1.9:1883: connect: connection refused
+2025/03/10 19:40:13 main.go:208: Failed to connect to MQTT (attempt 2/5): network Error : dial tcp 192.168.1.239:1883: connect: connection refused
+2025/03/10 19:40:18 main.go:208: Failed to connect to MQTT (attempt 3/5): network Error : dial tcp 192.168.1.239:1883: connect: connection refused
+2025/03/10 19:40:23 main.go:208: Failed to connect to MQTT (attempt 4/5): network Error : dial tcp 192.168.1.239:1883: connect: connection refused
+2025/03/10 19:40:35 main.go:218: Starting Weather Sensor MQTT Publisher...
+2025/03/10 19:40:35 main.go:221: Connecting to InfluxDB at: http://localhost:8086 (Org: your-org, Bucket: your-bucket)
+2025/03/10 19:40:37 main.go:222: Connecting to MQTT Broker: tcp://homeassistant.local:1883
+2025/03/10 19:40:45 main.go:208: Failed to connect to MQTT (attempt 1/5): network Error : dial tcp 192.168.1.239:1883: connect: connection refused
