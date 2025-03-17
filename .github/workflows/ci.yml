@@ -5,7 +5,7 @@ on:
     # branches:
     #   - "**"
     tags:
-      - "v*.*.*"    
+      - "*.*.*"    
   # pull_request:
   #   branches: [ "master" ]
 
@@ -59,6 +59,7 @@ jobs:
 
       - name: Build Helm chart
         run: |
-          helm package helm-chart --version {{version}}
-          helm push influx-mqtt-homeassistant-{{version}}.tgz oci://ghcr.io/mwinters-stuff/influx-mqtt-homeassistant-helm
+          VERSION=$(echo ${{ github.ref }} | sed 's/refs\/tags\///')
+          helm package helm-chart --version $VERSION
+          helm push influx-mqtt-homeassistant-$VERSION.tgz oci://ghcr.io/mwinters-stuff/influx-mqtt-homeassistant-helm
 
