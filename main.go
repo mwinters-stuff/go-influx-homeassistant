@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -21,7 +22,7 @@ var (
 	mqttBroker            = getEnv("MQTT_BROKER", "tcp://homeassistant.local:1883")
 	mqttUsername          = getEnv("MQTT_USERNAME", "")
 	mqttPassword          = getEnv("MQTT_PASSWORD", "")
-	mqttSensor            = getEnv("MQTT_SENSOR", "weather-import")
+	mqttSensor            = getEnv("MQTT_SENSOR", "influx-import")
 	publishInterval       = 2 * time.Minute // Send rain & wind data every 2 minutes
 	configPublishInterval = 12 * time.Hour  // Republish MQTT discovery config every 12 hours
 
@@ -37,13 +38,31 @@ func getEnv(key, defaultValue string) string {
 
 // MQTT Configuration
 const (
-	mqttRainTopic      = "homeassistant/sensor/%s/rain/state"
-	mqttRainConfig     = "homeassistant/sensor/%s/rain/config"
-	mqttWindTopic      = "homeassistant/sensor/%s/wind_max/state"
-	mqttWindConfig     = "homeassistant/sensor/%s/wind_max/config"
-	mqttWindGustTopic  = "homeassistant/sensor/%s/wind_gust_max/state"
-	mqttWindGustConfig = "homeassistant/sensor/%s/wind_gust_max/config"
-	mqttAvail          = "homeassistant/sensor/%s/weather/availability"
+	mqttRainTopic  = "homeassistant/sensor/%s/rain/state"
+	mqttRainConfig = "homeassistant/sensor/%s/rain/config"
+
+	mqttWindTopic  = "homeassistant/sensor/%s/wind-max/state"
+	mqttWindConfig = "homeassistant/sensor/%s/wind-max/config"
+
+	mqttWindGustTopic  = "homeassistant/sensor/%s/wind-gust-max/state"
+	mqttWindGustConfig = "homeassistant/sensor/%s/wind-gust-max/config"
+
+	mqttMinTempTopic  = "homeassistant/sensor/%s/temperature-min/state"
+	mqttMinTempConfig = "homeassistant/sensor/%s/temperature-min/config"
+	mqttMaxTempTopic  = "homeassistant/sensor/%s/temperature-max/state"
+	mqttMaxTempConfig = "homeassistant/sensor/%s/temperature-max/config"
+
+	mqttMinHumidTopic  = "homeassistant/sensor/%s/humidity-min/state"
+	mqttMinHumidConfig = "homeassistant/sensor/%s/humidity-min/config"
+	mqttMaxHumidTopic  = "homeassistant/sensor/%s/humidity-max/state"
+	mqttMaxHumidConfig = "homeassistant/sensor/%s/humidity-max/config"
+
+	mqttMinPressureTopic  = "homeassistant/sensor/%s/pressure-min/state"
+	mqttMinPressureConfig = "homeassistant/sensor/%s/pressure-min/config"
+	mqttMaxPressureTopic  = "homeassistant/sensor/%s/pressure-max/state"
+	mqttMaxPressureConfig = "homeassistant/sensor/%s/pressure-max/config"
+
+	mqttAvail = "homeassistant/sensor/%s/availability"
 )
 
 // Retry Settings
@@ -57,12 +76,20 @@ type MqttConfig struct {
 	DeviceClass         string `json:"device_class"`
 	Name                string `json:"name"`
 	StateTopic          string `json:"state_topic"`
+	StateClass          string `json:"state_class"`
 	UnitOfMeasurement   string `json:"unit_of_measurement"`
 	ValueTemplate       string `json:"value_template"`
 	UniqueID            string `json:"unique_id"`
 	AvailabilityTopic   string `json:"availability_topic"`
 	PayloadAvailable    string `json:"payload_available"`
 	PayloadNotAvailable string `json:"payload_not_available"`
+	Device              Device `json:"device"`
+}
+
+type Device struct {
+	Name          string `json:"name"`
+	SuggestedArea string `json:"suggested_area"`
+	Identifiers   string `json:"identifiers"` // Add Identifiers field
 }
 
 // Set up logging to file and console
@@ -76,21 +103,9 @@ func setupLogging() {
 }
 
 // Query InfluxDB for rain data since midnight
-func queryInfluxDBRain() (float64, error) {
-	log.Println("Querying InfluxDB for rain data...")
-	return queryInfluxDBValue("sensor-data", "rain", "sum")
-}
-
-// Query InfluxDB for max wind speed since midnight
-func queryInfluxDBMaxWind() (float64, error) {
-	log.Println("Querying InfluxDB for max wind speed data...")
-	return queryInfluxDBValue("sensor-data", "wind", "max")
-}
-
-// Query InfluxDB for max wind gust speed since midnight
-func queryInfluxDBMaxWindGust() (float64, error) {
-	log.Println("Querying InfluxDB for max wind gust speed data...")
-	return queryInfluxDBValue("sensor-data", "wind-gust", "max")
+func queryInfluxDB(field, aggFunction string) (float64, error) {
+	log.Printf("Querying InfluxDB for %s of %s data...\n", aggFunction, field)
+	return queryInfluxDBValue("sensor-data", field, aggFunction)
 }
 
 // Generalized InfluxDB query function
@@ -141,55 +156,77 @@ func queryInfluxDBValue(measurement, field, aggFunction string) (float64, error)
 	return 0, fmt.Errorf("failed to retrieve %s from InfluxDB after %d attempts", measurement, maxRetries)
 }
 
+func extractSensorType(topic string) string {
+	parts := strings.Split(topic, "/")
+	if len(parts) > 3 {
+		return parts[3]
+	}
+	return ""
+}
+
+func generateMqttConfig(device Device, stateTopic, deviceClass, name, unit, stateClass string) MqttConfig {
+	return MqttConfig{
+		DeviceClass:         deviceClass,
+		Name:                name,
+		StateTopic:          fmt.Sprintf(stateTopic, mqttSensor),
+		StateClass:          stateClass,
+		UnitOfMeasurement:   unit,
+		ValueTemplate:       "{{ value | float }}",
+		UniqueID:            fmt.Sprintf("%s-sensor-%s", mqttSensor, extractSensorType(stateTopic)),
+		AvailabilityTopic:   fmt.Sprintf(mqttAvail, mqttSensor),
+		PayloadAvailable:    "online",
+		PayloadNotAvailable: "offline",
+		Device:              device,
+	}
+}
+
 // Publish MQTT Discovery Config for Home Assistant
 func publishMqttConfig(client mqtt.Client) {
 	log.Println("Publishing MQTT discovery config...")
+
+	var device = Device{Name: "Influx Import", SuggestedArea: "Garage", Identifiers: mqttSensor}
+
 	configs := []struct {
 		Topic  string
 		Config MqttConfig
 	}{
 		{
-			Topic: mqttRainConfig,
-			Config: MqttConfig{
-				DeviceClass:         "precipitation",
-				Name:                "Rainfall Sensor",
-				StateTopic:          fmt.Sprintf(mqttRainTopic, mqttSensor),
-				UnitOfMeasurement:   "mm",
-				ValueTemplate:       "{{ value | float }}",
-				UniqueID:            "sensor_rainfall",
-				AvailabilityTopic:   fmt.Sprintf(mqttAvail, mqttSensor),
-				PayloadAvailable:    "online",
-				PayloadNotAvailable: "offline",
-			},
+			fmt.Sprintf(mqttRainConfig, mqttSensor),
+			generateMqttConfig(device, mqttRainTopic, "precipitation", "Rainfall Sensor", "mm", "total_increasing"),
 		},
 		{
-			Topic: mqttWindConfig,
-			Config: MqttConfig{
-				DeviceClass:         "wind_speed",
-				Name:                "Max Wind Speed",
-				StateTopic:          fmt.Sprintf(mqttWindTopic, mqttSensor),
-				UnitOfMeasurement:   "km/h",
-				ValueTemplate:       "{{ value | float }}",
-				UniqueID:            "sensor_wind_max",
-				AvailabilityTopic:   fmt.Sprintf(mqttAvail, mqttSensor),
-				PayloadAvailable:    "online",
-				PayloadNotAvailable: "offline",
-			},
+			fmt.Sprintf(mqttWindConfig, mqttSensor),
+			generateMqttConfig(device, mqttWindTopic, "wind_speed", "Max Wind Speed", "km/h", "measurement"),
 		},
 		{
-			Topic: mqttWindConfig,
-			Config: MqttConfig{
-				DeviceClass:         "wind_speed",
-				Name:                "Max Wind Gust Speed",
-				StateTopic:          fmt.Sprintf(mqttWindGustTopic, mqttSensor),
-				UnitOfMeasurement:   "km/h",
-				ValueTemplate:       "{{ value | float }}",
-				UniqueID:            "sensor_wind_gust_max",
-				AvailabilityTopic:   fmt.Sprintf(mqttAvail, mqttSensor),
-				PayloadAvailable:    "online",
-				PayloadNotAvailable: "offline",
-			},
-		}}
+			fmt.Sprintf(mqttWindGustConfig, mqttSensor),
+			generateMqttConfig(device, mqttWindGustTopic, "wind_speed", "Max Wind Gust Speed", "km/h", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMinTempConfig, mqttSensor),
+			generateMqttConfig(device, mqttMinTempTopic, "temperature", "Minimum Temperature", "℃", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMaxTempConfig, mqttSensor),
+			generateMqttConfig(device, mqttMaxTempTopic, "temperature", "Maximum Temperature", "℃", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMinHumidConfig, mqttSensor),
+			generateMqttConfig(device, mqttMinHumidTopic, "humidity", "Minimum Humidity", "%", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMaxHumidConfig, mqttSensor),
+			generateMqttConfig(device, mqttMaxHumidTopic, "humidity", "Maximum Humidity", "%", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMinPressureConfig, mqttSensor),
+			generateMqttConfig(device, mqttMinPressureTopic, "pressure", "Minimum Pressure", "hPa", "measurement"),
+		},
+		{
+			fmt.Sprintf(mqttMaxPressureConfig, mqttSensor),
+			generateMqttConfig(device, mqttMaxPressureTopic, "pressure", "Maximum Pressure", "hPa", "measurement"),
+		},
+	}
 
 	for _, c := range configs {
 		configPayload, err := json.Marshal(c.Config)
@@ -205,7 +242,8 @@ func publishMqttConfig(client mqtt.Client) {
 
 // Publish data to MQTT
 func publishToMQTT(client mqtt.Client, topic string, value float64) {
-	client.Publish(mqttAvail, 0, true, "online").Wait()
+	client.Publish(fmt.Sprintf(mqttAvail, mqttSensor), 0, true, "online").Wait()
+
 	payload := fmt.Sprintf("%.2f", value)
 	postTopic := fmt.Sprintf(topic, mqttSensor)
 	client.Publish(postTopic, 0, false, payload).Wait()
@@ -217,7 +255,9 @@ func connectToMQTT() mqtt.Client {
 	opts := mqtt.NewClientOptions().
 		AddBroker(mqttBroker).
 		SetUsername(mqttUsername).
-		SetPassword(mqttPassword)
+		SetPassword(mqttPassword).
+		SetWill(fmt.Sprintf(mqttAvail, mqttSensor), "offline", 0, true). // Set the Will
+		SetAutoReconnect(true)
 
 	for i := 1; i <= maxRetries; i++ {
 		client := mqtt.NewClient(opts)
@@ -226,6 +266,7 @@ func connectToMQTT() mqtt.Client {
 
 		if token.Error() == nil {
 			log.Println("Connected to MQTT broker")
+			client.Publish(fmt.Sprintf(mqttAvail, mqttSensor), 0, true, "online").Wait() // Publish online status
 			return client
 		}
 
@@ -260,27 +301,70 @@ func main() {
 		}
 	}()
 
+	// Example usage
+	sensorType := extractSensorType(mqttMaxTempTopic)
+	fmt.Println(sensorType) // Output: temperature-max
+
 	// Main loop: Publish sensor data every 2 minutes
 	log.Println("Entering MQTT publishing loop...")
 	for {
-		rainValue, err := queryInfluxDBRain()
+		rainValue, err := queryInfluxDB("rain", "sum")
 		if err != nil {
 			log.Printf("Error querying rain data: %v", err)
 		}
 
-		windValue, err := queryInfluxDBMaxWind()
+		windValue, err := queryInfluxDB("wind", "max")
 		if err != nil {
 			log.Printf("Error querying wind data: %v", err)
 		}
 
-		windGustValue, err := queryInfluxDBMaxWindGust()
+		windGustValue, err := queryInfluxDB("wind-gust", "max")
 		if err != nil {
 			log.Printf("Error querying wind gust data: %v", err)
+		}
+
+		minTempValue, err := queryInfluxDB("temperature", "min")
+		if err != nil {
+			log.Printf("Error querying min temp data: %v", err)
+		}
+
+		maxTempValue, err := queryInfluxDB("temperature", "max")
+		if err != nil {
+			log.Printf("Error querying max temp data: %v", err)
+		}
+
+		minHumidityValue, err := queryInfluxDB("humidity", "min")
+		if err != nil {
+			log.Printf("Error querying min humidity data: %v", err)
+		}
+
+		maxHumidityValue, err := queryInfluxDB("humidity", "max")
+		if err != nil {
+			log.Printf("Error querying max humidity data: %v", err)
+		}
+
+		minPressureValue, err := queryInfluxDB("pressure", "min")
+		if err != nil {
+			log.Printf("Error querying min pressure data: %v", err)
+		}
+
+		maxPressureValue, err := queryInfluxDB("pressure", "max")
+		if err != nil {
+			log.Printf("Error querying max pressure data: %v", err)
 		}
 
 		publishToMQTT(client, mqttRainTopic, rainValue)
 		publishToMQTT(client, mqttWindTopic, windValue)
 		publishToMQTT(client, mqttWindGustTopic, windGustValue)
+
+		publishToMQTT(client, mqttMinTempTopic, minTempValue)
+		publishToMQTT(client, mqttMaxTempTopic, maxTempValue)
+
+		publishToMQTT(client, mqttMinHumidTopic, minHumidityValue)
+		publishToMQTT(client, mqttMaxHumidTopic, maxHumidityValue)
+
+		publishToMQTT(client, mqttMinPressureTopic, minPressureValue)
+		publishToMQTT(client, mqttMaxPressureTopic, maxPressureValue)
 
 		time.Sleep(publishInterval)
 	}
