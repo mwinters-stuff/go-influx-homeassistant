@@ -60,4 +60,5 @@ jobs:
       - name: Build Helm chart
         run: |
           helm package helm-chart
+          helm push helm-chart oci://ghcr.io/mwinters-stuff/influx-mqtt-homeassistant-helm
 
