@@ -4,11 +4,12 @@ image:
 
 env:
   INFLUX_URL: "http://influxdb.home-assistant.svc:8086"
-  INFLUX_BUCKET: "your-bucket"
+  INFLUX_BUCKET: your-bucket
+  INFLUX_TOKEN: tokentokentoken
+  INFLUX_ORG: org
   MQTT_BROKER: "tcp://homeassistant.local:1883"
-
-secretRef:
-  name: mqtt-sensor-secrets
+  MQTT_USERNAME: username
+  MQTT_PASSWORD: password
 
 resources:
   limits:

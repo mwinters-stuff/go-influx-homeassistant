@@ -21,12 +21,17 @@ spec:
           env:
             - name: INFLUX_URL
               value: "{{ .Values.env.INFLUX_URL }}"
+            - name: INFLUX_TOKEN
+              value: "{{ .Values.env.INFLUX_TOKEN }}"
             - name: INFLUX_BUCKET
               value: "{{ .Values.env.INFLUX_BUCKET }}"
+            - name: INFLUX_ORG
+              value: "{{ .Values.env.INFLUX_ORG }}"
             - name: MQTT_BROKER
               value: "{{ .Values.env.MQTT_BROKER }}"
-          envFrom:
-            - secretRef:
-                name: {{ .Values.secretRef.name }}
+            - name: MQTT_USERNAME
+              value: "{{ .Values.env.MQTT_USERNAME }}"
+            - name: MQTT_PASSWORD
+              value: "{{ .Values.env.MQTT_PASSWORD }}"
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
