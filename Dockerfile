@@ -17,8 +17,11 @@ RUN go build -o influx-mqtt-homeassistant
 # Use a small runtime image
 FROM alpine:latest
 
-# Install CA certificates for HTTPS (needed for InfluxDB connections)
-RUN apk add --no-cache ca-certificates
+# Install CA certificates for HTTPS (needed for InfluxDB connections) and tzdata for timezone handling
+RUN apk add --no-cache ca-certificates tzdata
+
+# Set timezone environment variable
+ENV TZ=Pacific/Auckland
 
 # Set working directory
 WORKDIR /root/
